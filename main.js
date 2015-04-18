@@ -593,630 +593,352 @@
 		var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
 		next();
 	} )
-	ee_app.use( connect.json() );
 	var ee_routes = function ( ee_app ) {
-		ee_app.get( '/', function ( req, res ) {
-			res.sendfile( 'index.html', {
-					root: __dirname + '/public'
-				} )
-				// res.end('Coming Soon...');
-		} );
-		ee_app.get( '/register*', function ( req, res ) {
-			res.redirect( 302, '/' );
-		} )
-		ee_app.get( '/api/getNewestListings', function ( req, res ) {
-			res.type( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( containsKeys( dat, [ 'limit' ] ) ) {
-				ee_getNewestListings( dat, function ( err, result ) {
-					if ( err ) {
+			ee_app.get( '/', function ( req, res ) {
+				res.sendfile( 'index.html', {
+						root: __dirname + '/public'
+					} )
+					// res.end('Coming Soon...');
+			} );
+			ee_app.get( '/register*', function ( req, res ) {
+				res.redirect( 302, '/' );
+			} )
+			ee_app.get( '/api/getNewestListings', function ( req, res ) {
+				res.type( 'application/json' );
+				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+				if ( containsKeys( dat, [ 'limit' ] ) ) {
+					ee_getNewestListings( dat, function ( err, result ) {
+						if ( err ) {
+							res.end( JSON.stringify( {
+								'success': false,
+								'error': err.toString()
+							} ) );
+						}
 						res.end( JSON.stringify( {
-							'success': false,
-							'error': err.toString()
+							'success': true,
+							'result': result
+						} ) );
+					} );
+				} else {
+					res.end( JSON.stringify( {
+						'success': false,
+						'error': 'err: missing parameter: limit'
+					} ) );
+				}
+			} );
+			ee_app.get( '/api/listNew', function ( req, res ) {
+				res.type( 'application/json' );
+				if ( req.LoginSession.authenticated ) {
+					var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+					console.log( JSON.stringify( dat ) );
+					if ( containsKeys( dat, [ 'itemName', 'itemID', 'server', 'tags[]', 'price', 'auction', 'publicAfterClose', 'timeout' ] ) ) {
+						if ( dat[ 'price' ] > 50000000 ) {
+							return res.end( JSON.stringify( {
+								'success': false,
+								'error': "Price is too damn high!"
+							} ) );
+						}
+						dat[ 'user' ] = req.LoginSession.user;
+						console.log( dat[ 'user' ] === req.LoginSession.user );
+						ee_listingAddNew( dat, function ( err, result ) {
+							//console.log('ee_listingAddNew returned with ' + err + ' ' + result);
+							console.log( err );
+							if ( err ) res.end( JSON.stringify( {
+								success: false,
+								error: err.toString()
+							} ) );
+							if ( result ) {
+								ee_ListingModel.find( {
+									user: dat[ 'listingOwner' ]
+								} ).sort( {
+									listingID: -1
+								} ).limit( 1 ).exec( function ( err, result ) {
+									if ( err ) {
+										console.log( err );
+										res.end( JSON.stringify( {
+											success: false,
+											'error': err.toString()
+										} ) );
+										return;
+									}
+									var ret = result[ 0 ].listingID;
+									res.write( JSON.stringify( {
+										success: true,
+										result: 'Listing Submitted!',
+										listingID: ret
+									} ) );
+									return res.end();
+								} );
+							} else {
+								return res.end( JSON.stringify( {
+									success: false,
+									error: 'failed to create listing!'
+								} ) );
+							}
+						} );
+					} else {
+						res.end( JSON.stringify( {
+							success: false,
+							error: 'err: missing parameters!'
 						} ) );
 					}
+				} else {
 					res.end( JSON.stringify( {
-						'success': true,
-						'result': result
+						success: false,
+						error: 'Not logged in.'
 					} ) );
-				} );
-			} else {
-				res.end( JSON.stringify( {
-					'success': false,
-					'error': 'err: missing parameter: limit'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/listNew', function ( req, res ) {
-			res.type( 'application/json' );
-			if ( req.LoginSession.authenticated ) {
+				}
+			} );
+			ee_app.get( '/api/searchListing', function ( req, res ) {
+				res.type( 'application/json' );
 				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-				console.log( JSON.stringify( dat ) );
-				if ( containsKeys( dat, [ 'itemName', 'itemID', 'server', 'tags[]', 'price', 'auction', 'publicAfterClose', 'timeout' ] ) ) {
-					if ( dat[ 'price' ] > 50000000 ) {
+				//console.log(dat);
+				if ( containsKeys( dat, [ 'auction', 'type[]' ] ) ) {
+					if ( ( dat[ 'priceMin' ] == "" || dat[ 'priceMax' ] == "" ) && dat.priceIgnore == undefined ) {
 						return res.end( JSON.stringify( {
 							'success': false,
-							'error': "Price is too damn high!"
+							'error': 'err: Price Min/Max are invalid fields',
+							'details': dat
 						} ) );
+					} else if ( dat.priceIgnore != undefined ) {
+						dat[ 'priceMin' ] = 0;
+						dat[ 'priceMax' ] = 10000000;
 					}
-					dat[ 'user' ] = req.LoginSession.user;
-					console.log( dat[ 'user' ] === req.LoginSession.user );
-					ee_listingAddNew( dat, function ( err, result ) {
-						//console.log('ee_listingAddNew returned with ' + err + ' ' + result);
-						console.log( err );
-						if ( err ) res.end( JSON.stringify( {
-							success: false,
-							error: err.toString()
-						} ) );
-						if ( result ) {
-							ee_ListingModel.find( {
-								user: dat[ 'listingOwner' ]
-							} ).sort( {
-								listingID: -1
-							} ).limit( 1 ).exec( function ( err, result ) {
+					if ( dat[ 'server[]' ] === undefined ) {
+						dat[ 'server[]' ] = [ 'Alexina', 'Mari', 'Ruairi', 'Tarlach' ];
+					}
+					if ( dat[ 'type[]' ][ 0 ] == 0 ) {
+						//console.log(dat.type);
+						if ( dat[ 'type[]' ][ 1 ] === 'tags' && dat[ 'tags[]' ] != undefined ) {
+							//console.log('searching by tags');
+							ee_simpleListingSearch( dat, 'tags', function ( err, result ) {
 								if ( err ) {
-									console.log( err );
-									res.end( JSON.stringify( {
+									return res.end( JSON.stringify( {
 										success: false,
-										'error': err.toString()
+										error: err.toString()
 									} ) );
-									return;
 								}
-								var ret = result[ 0 ].listingID;
-								res.write( JSON.stringify( {
+								return res.end( JSON.stringify( {
 									success: true,
-									result: 'Listing Submitted!',
-									listingID: ret
+									'result': result
 								} ) );
-								return res.end();
+							} )
+						} else if ( dat[ 'type[]' ][ 1 ] === 'listingOwner' && dat[ 'listingOwner' ] != undefined ) {
+							//console.log('searching by listingOwner');
+							ee_simpleListingSearch( dat, 'listingOwner', function ( err, result ) {
+								if ( err ) {
+									return res.end( JSON.stringify( {
+										success: false,
+										error: err.toString()
+									} ) );
+								}
+								return res.end( JSON.stringify( {
+									success: true,
+									'result': result
+								} ) );
+							} );
+						} else if ( dat[ 'type[]' ][ 1 ] === 'itemID' && dat[ 'itemID' ] != undefined ) {
+							//console.log('searching by itemID');
+							ee_simpleListingSearch( dat, 'itemID', function ( err, result ) {
+								if ( err ) {
+									return res.end( JSON.stringify( {
+										success: false,
+										error: err.toString()
+									} ) );
+								}
+								return res.end( JSON.stringify( {
+									success: true,
+									'result': result
+								} ) );
+							} );
+						} else if ( dat[ 'type[]' ][ 1 ] === 'itemName' && dat[ 'itemName' ] != undefined ) {
+							//console.log('searching by itemName');
+							ee_simpleListingSearch( dat, 'itemName', function ( err, result ) {
+								if ( err ) {
+									return res.end( JSON.stringify( {
+										success: false,
+										error: err.toString()
+									} ) );
+								}
+								return res.end( JSON.stringify( {
+									success: true,
+									'result': result
+								} ) );
+							} );
+						} else if ( dat[ 'type[]' ][ 1 ] === 'listingID' && dat[ 'listingID' ] != undefined ) {
+							//console.log('searching by listingID');
+							ee_simpleListingSearch( dat, 'listingID', function ( err, result ) {
+								if ( err ) {
+									return res.end( JSON.stringify( {
+										success: false,
+										error: err.toString()
+									} ) );
+								}
+								return res.end( JSON.stringify( {
+									success: true,
+									'result': result
+								} ) );
+							} );
+						} else if ( dat[ 'type[]' ][ 1 ] === 'empty' && dat[ 'emptySearch' ] != undefined ) {
+							ee_simpleListingSearch( dat, 'empty', function ( err, result ) {
+								if ( err ) {
+									return res.end( JSON.stringify( {
+										success: false,
+										error: err.toString()
+									} ) );
+								}
+								return res.end( JSON.stringify( {
+									success: true,
+									'result': result
+								} ) );
 							} );
 						} else {
 							return res.end( JSON.stringify( {
 								success: false,
-								error: 'failed to create listing!'
+								error: 'No type specified, or type value not defined!'
 							} ) );
 						}
-					} );
+					} else {
+						//complex search
+						// ee_complexListingSearch(dat, dat.type.slice(1), function (err, result) {
+						// if (err) {
+						// res.end(JSON.stringify({
+						// success: false,
+						// error: err
+						// }));
+						// }
+						// res.end(JSON.stringify({
+						// success: true,
+						// results: result
+						// }));
+						// });
+						res.end( JSON.stringify( {
+							'success': false,
+							'error': 'This functionality reqiures heavy debugging.\n Please use normal searches until the bugs can be fixed.'
+						} ) );
+					}
+				} else {
+					res.end( JSON.stringify( {
+						'success': false,
+						'error': 'err: Missing required fields: type or auction',
+						'details': dat
+					} ) );
+				}
+			} );
+			ee_app.get( '/api/search', function ( req, res ) {
+				res.type( 'application/json' );
+				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+				console.log( dat );
+				if ( containsKeys( dat, [ 'type' ] ) ) {
+					if ( dat.type == 0 && containsKeys( dat, [ 'id' ] ) ) {
+						//search by id
+						dat.type = 0;
+						ee_getItemByID( escape( dat.id ), function ( err, result ) {
+							if ( err ) {
+								//console.log(err);
+								res.end( JSON.stringify( {
+									'success': false,
+									error: err.toString()
+								} ) );
+							}
+							res.end( JSON.stringify( {
+								'success': true,
+								'result': result
+							} ) );
+						} );
+					} else if ( dat.type == 1 && containsKeys( dat, [ 'name' ] ) ) {
+						//search by name
+						dat.type = 1;
+						if ( containsKeys( dat, [ 'exact' ] ) && dat.exact === "true" ) {
+							ee_getItemByName( escape( dat.name ), function ( err, result ) {
+								if ( err ) {
+									//console.log(err);
+									res.end( JSON.stringify( {
+										'success': false,
+										error: err.toString()
+									} ) )
+								}
+								res.end( JSON.stringify( {
+									'success': true,
+									'result': result
+								} ) );
+							} );
+						} else {
+							ee_getItemByNameRegex( escape( dat.name ), function ( err, result ) {
+								if ( err ) {
+									//console.log(err);
+									res.end( JSON.stringify( {
+										'success': false,
+										error: err.toString()
+									} ) )
+								}
+								res.end( JSON.stringify( {
+									'success': true,
+									'result': result
+								} ) );
+							} );
+						}
+					} else {
+						res.end( JSON.stringify( {
+							success: false,
+							error: 'invalid value for type parameter'
+						} ) );
+					}
+				}
+				//console.log(req.header);	res.end('accessed search');
+			} );
+			ee_app.get( '/api/bid', function ( req, res ) {
+				res.contentType( 'application/json' );
+				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+				if ( containsKeys( dat, [ 'listingID', 'bid' ] ) ) {
+					if ( req.LoginSession.authenticated === true ) {
+						if ( dat[ 'bid' ] > 55000000 ) {
+							return res.end( JSON.stringify( {
+								'success': false,
+								error: 'Bid amount beyond max ceiling for listings.'
+							} ) );
+						}
+						dat[ 'user' ] = req.LoginSession.user;
+						ee_makeBid( dat, function ( err, result ) {
+							if ( err ) {
+								res.end( JSON.stringify( {
+									success: false,
+									error: err
+								} ) );
+							} else if ( result == true ) {
+								res.end( JSON.stringify( {
+									success: true,
+									result: true
+								} ) );
+							} else if ( result == false ) {
+								res.end( JSON.stringify( {
+									success: true,
+									result: false
+								} ) );
+							}
+						} );
+					} else {
+						res.end( JSON.stringify( {
+							success: false,
+							error: 'err: Not Logged In.'
+						} ) );
+					}
 				} else {
 					res.end( JSON.stringify( {
 						success: false,
 						error: 'err: missing parameters!'
 					} ) );
 				}
-			} else {
-				res.end( JSON.stringify( {
-					success: false,
-					error: 'Not logged in.'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/searchListing', function ( req, res ) {
-			res.type( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			//console.log(dat);
-			if ( containsKeys( dat, [ 'auction', 'type[]' ] ) ) {
-				if ( ( dat[ 'priceMin' ] == "" || dat[ 'priceMax' ] == "" ) && dat.priceIgnore == undefined ) {
-					return res.end( JSON.stringify( {
-						'success': false,
-						'error': 'err: Price Min/Max are invalid fields',
-						'details': dat
-					} ) );
-				} else if ( dat.priceIgnore != undefined ) {
-					dat[ 'priceMin' ] = 0;
-					dat[ 'priceMax' ] = 10000000;
-				}
-				if ( dat[ 'server[]' ] === undefined ) {
-					dat[ 'server[]' ] = [ 'Alexina', 'Mari', 'Ruairi', 'Tarlach' ];
-				}
-				if ( dat[ 'type[]' ][ 0 ] == 0 ) {
-					//console.log(dat.type);
-					if ( dat[ 'type[]' ][ 1 ] === 'tags' && dat[ 'tags[]' ] != undefined ) {
-						//console.log('searching by tags');
-						ee_simpleListingSearch( dat, 'tags', function ( err, result ) {
-							if ( err ) {
-								return res.end( JSON.stringify( {
-									success: false,
-									error: err.toString()
-								} ) );
-							}
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						} )
-					} else if ( dat[ 'type[]' ][ 1 ] === 'listingOwner' && dat[ 'listingOwner' ] != undefined ) {
-						//console.log('searching by listingOwner');
-						ee_simpleListingSearch( dat, 'listingOwner', function ( err, result ) {
-							if ( err ) {
-								return res.end( JSON.stringify( {
-									success: false,
-									error: err.toString()
-								} ) );
-							}
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						} );
-					} else if ( dat[ 'type[]' ][ 1 ] === 'itemID' && dat[ 'itemID' ] != undefined ) {
-						//console.log('searching by itemID');
-						ee_simpleListingSearch( dat, 'itemID', function ( err, result ) {
-							if ( err ) {
-								return res.end( JSON.stringify( {
-									success: false,
-									error: err.toString()
-								} ) );
-							}
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						} );
-					} else if ( dat[ 'type[]' ][ 1 ] === 'itemName' && dat[ 'itemName' ] != undefined ) {
-						//console.log('searching by itemName');
-						ee_simpleListingSearch( dat, 'itemName', function ( err, result ) {
-							if ( err ) {
-								return res.end( JSON.stringify( {
-									success: false,
-									error: err.toString()
-								} ) );
-							}
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						} );
-					} else if ( dat[ 'type[]' ][ 1 ] === 'listingID' && dat[ 'listingID' ] != undefined ) {
-						//console.log('searching by listingID');
-						ee_simpleListingSearch( dat, 'listingID', function ( err, result ) {
-							if ( err ) {
-								return res.end( JSON.stringify( {
-									success: false,
-									error: err.toString()
-								} ) );
-							}
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						} );
-					} else if ( dat[ 'type[]' ][ 1 ] === 'empty' && dat[ 'emptySearch' ] != undefined ) {
-						ee_simpleListingSearch( dat, 'empty', function ( err, result ) {
-							if ( err ) {
-								return res.end( JSON.stringify( {
-									success: false,
-									error: err.toString()
-								} ) );
-							}
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						} );
-					} else {
-						return res.end( JSON.stringify( {
-							success: false,
-							error: 'No type specified, or type value not defined!'
-						} ) );
-					}
-				} else {
-					//complex search
-					// ee_complexListingSearch(dat, dat.type.slice(1), function (err, result) {
-					// if (err) {
-					// res.end(JSON.stringify({
-					// success: false,
-					// error: err
-					// }));
-					// }
-					// res.end(JSON.stringify({
-					// success: true,
-					// results: result
-					// }));
-					// });
-					res.end( JSON.stringify( {
-						'success': false,
-						'error': 'This functionality reqiures heavy debugging.\n Please use normal searches until the bugs can be fixed.'
-					} ) );
-				}
-			} else {
-				res.end( JSON.stringify( {
-					'success': false,
-					'error': 'err: Missing required fields: type or auction',
-					'details': dat
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/search', function ( req, res ) {
-			res.type( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			console.log( dat );
-			if ( containsKeys( dat, [ 'type' ] ) ) {
-				if ( dat.type == 0 && containsKeys( dat, [ 'id' ] ) ) {
-					//search by id
-					dat.type = 0;
-					ee_getItemByID( escape( dat.id ), function ( err, result ) {
-						if ( err ) {
-							//console.log(err);
-							res.end( JSON.stringify( {
-								'success': false,
-								error: err.toString()
-							} ) );
-						}
-						res.end( JSON.stringify( {
-							'success': true,
-							'result': result
-						} ) );
-					} );
-				} else if ( dat.type == 1 && containsKeys( dat, [ 'name' ] ) ) {
-					//search by name
-					dat.type = 1;
-					if ( containsKeys( dat, [ 'exact' ] ) && dat.exact === "true" ) {
-						ee_getItemByName( escape( dat.name ), function ( err, result ) {
-							if ( err ) {
-								//console.log(err);
-								res.end( JSON.stringify( {
-									'success': false,
-									error: err.toString()
-								} ) )
-							}
-							res.end( JSON.stringify( {
-								'success': true,
-								'result': result
-							} ) );
-						} );
-					} else {
-						ee_getItemByNameRegex( escape( dat.name ), function ( err, result ) {
-							if ( err ) {
-								//console.log(err);
-								res.end( JSON.stringify( {
-									'success': false,
-									error: err.toString()
-								} ) )
-							}
-							res.end( JSON.stringify( {
-								'success': true,
-								'result': result
-							} ) );
-						} );
-					}
-				} else {
-					res.end( JSON.stringify( {
-						success: false,
-						error: 'invalid value for type parameter'
-					} ) );
-				}
-			}
-			//console.log(req.header);	res.end('accessed search');
-		} );
-		ee_app.get( '/api/bid', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( containsKeys( dat, [ 'listingID', 'bid' ] ) ) {
-				if ( req.LoginSession.authenticated === true ) {
-					if ( dat[ 'bid' ] > 55000000 ) {
-						return res.end( JSON.stringify( {
-							'success': false,
-							error: 'Bid amount beyond max ceiling for listings.'
-						} ) );
-					}
-					dat[ 'user' ] = req.LoginSession.user;
-					ee_makeBid( dat, function ( err, result ) {
-						if ( err ) {
-							res.end( JSON.stringify( {
-								success: false,
-								error: err
-							} ) );
-						} else if ( result == true ) {
-							res.end( JSON.stringify( {
-								success: true,
-								result: true
-							} ) );
-						} else if ( result == false ) {
-							res.end( JSON.stringify( {
-								success: true,
-								result: false
-							} ) );
-						}
-					} );
-				} else {
-					res.end( JSON.stringify( {
-						success: false,
-						error: 'err: Not Logged In.'
-					} ) );
-				}
-			} else {
-				res.end( JSON.stringify( {
-					success: false,
-					error: 'err: missing parameters!'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/priceCheck', function ( req, res ) {
-			//console.log(req.header);	res.end('\naccesed priceCheck');
-			res.end( 'unimplemented, check back later asshole :(' )
-		} );
-		ee_app.get( '/api/getBidsByUser', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( containsKeys( dat, [ 'user' ] ) ) {
-				ee_getUserBidsWithListings( dat, function ( err, res ) {
-					if ( err ) {
-						return res.end( JSON.stringify( {
-							'success': false,
-							'error': err
-						} ) );
-					}
-					return res.end( JSON.stringify( {
-						'success': true,
-						'result': res.toString()
-					} ) );
-				} );
-			} else {
-				return res.end( JSON.stringify( {
-					'success': false,
-					'error': 'Missing Parameter: User'
-				} ) )
-			}
-		} );
-		ee_app.get( '/api/register', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			//console.log(dat);
-			if ( containsKeys( dat, [ 'user', 'md5', 'email', 'characterName', 'server' ] ) ) {
-				//console.log(JSON.stringify(dat));
-				ee_userRegister( dat, function ( err, a ) {
-					if ( a === true ) {
-						res.end( JSON.stringify( {
-							'success': true,
-							user: dat[ 'user' ],
-							email: dat[ 'email' ],
-							character: dat[ 'characterName' ],
-							server: dat[ 'server' ]
-						} ) );
-					} else {
-						res.end( JSON.stringify( {
-							'success': false,
-							'error': err
-						} ) );
-					}
-				} );
-			} else {
-				res.end( JSON.stringify( {
-					'success': false,
-					'error': 'missing parameters'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/login', function ( req, res ) {
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			res.contentType( 'application/json' );
-			if ( containsKeys( dat, [ 'user', 'md5' ] ) ) {
-				ee_userValidate( dat[ 'user' ], dat[ 'md5' ], function ( a ) {
-					if ( a == true ) {
-						// res.cookie('LoggedIn', true, { signed: true, secret : cookieSecret });
-						req.LoginSession.authenticated = true;
-						req.LoginSession.user = dat[ 'user' ];
-						res.end( JSON.stringify( {
-							success: true,
-							user: req.LoginSession.user,
-							auth: req.LoginSession.authenticated
-						} ) );
-					} else {
-						req.LoginSession.authenticated = false;
-						res.end( JSON.stringify( {
-							success: false,
-							user: '',
-							auth: req.LoginSession.authenticated
-						} ) );
-					}
-				} );
-			} else {
-				res.write( 'err: missing parameters' );
-				res.end();
-			}
-		} );
-		ee_app.get( '/api/logout', function ( req, res ) {
-			res.contentType( 'application/json' );
-			req.LoginSession.authenticated = false;
-			req.LoginSession.user = undefined;
-			res.end( JSON.stringify( {
-				'success': true
-			} ) );
-		} );
-		ee_app.get( '/api/loggedIn', function ( req, res ) {
-			res.contentType( 'application/json' );
-			res.end( JSON.stringify( {
-				'loggedIn': req.LoginSession.authenticated,
-				'user': req.LoginSession.user
-			} ) );
-		} );
-		ee_app.get( '/api/changelog', function ( req, res ) {
-			res.contentType( 'application/json' );
-			try {
-				fs.readFile( './changelog.txt', function ( err, data ) {
-					if ( err ) {
-						res.end( JSON.stringify( {
-							success: false,
-							error: err
-						} ) );
-					}
-					res.end( JSON.stringify( {
-						success: true,
-						result: JSON.parse( data.toString() )
-					} ) )
-				} );
-			} catch ( e ) {
-				res.end( JSON.stringify( {
-					success: false,
-					error: e.toString()
-				} ) )
-			}
-		} );
-		ee_app.get( '/api/account', function ( req, res ) {
-			res.contentType( 'application/json' );
-			if ( req.LoginSession.authenticated == true ) {
-				return ee_getAccountData( req.LoginSession.user, function ( err, result ) {
-					if ( err ) {
-						return res.end( JSON.stringify( {
-							'success': false,
-							'error': err
-						} ) );
-					} else {
-						return res.end( JSON.stringify( {
-							'success': true,
-							'result': result
-						} ) );
-					}
-				} );
-			} else {
-				return res.end( JSON.stringify( {
-					'success': false,
-					'error': 'Unauthenticated'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/account/addCharacter', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( req.LoginSession.authenticated == true ) {
-				if ( containsKeys( dat, [ 'characterName', 'server' ] ) ) {
-					dat[ 'user' ] = req.LoginSession.user;
-					return ee_accountAddCharacter( dat, function ( err, result ) {
-						if ( err ) {
-							return res.end( JSON.stringify( {
-								'success': false,
-								'error': err.toString()
-							} ) );
-						} else {
-							return res.end( JSON.stringify( {
-								'success': true,
-								'result': result
-							} ) );
-						}
-					} );
-				} else {
-					return res.end( JSON.stringify( {
-						'success': false,
-						'error': 'Missing parameters: characterName or server'
-					} ) );
-				}
-			} else {
-				return res.end( JSON.stringify( {
-					'success': false,
-					'error': 'Unauthenticated'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/account/removeCharacter', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( req.LoginSession.authenticated == true ) {
-				if ( containsKeys( dat, [ 'characterName' ] ) ) {
-					dat[ 'user' ] = req.LoginSession.user;
-					return ee_accountRemoveCharacter( dat, function ( err, result ) {
-						if ( err ) {
-							return res.end( JSON.stringify( {
-								'success': false,
-								'error': err.toString()
-							} ) );
-						} else {
-							return res.end( JSON.stringify( {
-								'success': true,
-								'result': result
-							} ) );
-						}
-					} );
-				} else {
-					return res.end( JSON.stringify( {
-						'success': false,
-						'error': 'Missing parameters: characterName'
-					} ) );
-				}
-			} else {
-				return res.end( JSON.stringify( {
-					'success': false,
-					'error': 'Unauthenticated'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/account/closeListing', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( req.LoginSession.authenticated == true ) {
-				if ( containsKeys( dat, [ 'listingID' ] ) ) {
-					dat[ 'user' ] = req.LoginSession.user;
-					return ee_closeListing( dat, function ( err, result ) {
-						if ( err ) return res.end( JSON.stringify( {
-							'success': false,
-							'error': err.toString(),
-							'data': result
-						} ) );
-						return res.end( JSON.stringify( {
-							'success': true,
-							'result': true
-						} ) );
-					} );
-				} else {
-					return res.end( JSON.stringify( {
-						'success': false,
-						'error': 'Missing parameter: listingID'
-					} ) );
-				}
-			} else {
-				return res.end( JSON.stringify( {
-					'success': false,
-					'error': 'Unauthenticated'
-				} ) );
-			}
-		} );
-		ee_app.get( '/api/account/editListing', function ( req, res ) {
-			res.contentType( 'application/json' );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			console.log( 'EDIT:' + JSON.stringify( dat ) );
-			if ( req.LoginSession.authenticated == true ) {
-				if ( containsKeys( dat, [ 'listingID', 'fields[]' ] ) == true ) {
-					ee_removeInvalidFields( dat[ 'fields[]' ], [ 'tags[]', 'listingNotes' ] );
-					return ee_editListing( dat, function ( err, result ) {
-						if ( err ) {
-							return res.end( JSON.stringify( {
-								success: false,
-								error: err.toString()
-							} ) );
-						} else {
-							return res.end( JSON.stringify( {
-								success: true,
-								'result': result
-							} ) );
-						}
-					} );
-				} else {
-					return res.end( JSON.stringify( {
-						success: false,
-						error: 'Missing parameters: listingID, fields'
-					} ) )
-				}
-			} else {
-				return res.end( JSON.stringify( {
-					success: false,
-					error: "Unauthenticated"
-				} ) )
-			}
-		} );
-		ee_app.get( '/api/admin/removeListing', function ( req, res ) {
-			res.contentType( 'application/json' );
-			return res.end( JSON.stringify( {
-				'success': false,
-				'error': "Not Implemented"
-			} ) );
-			var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
-			if ( req.LoginSession.user != "Maldaris" ) {
-				return res.end( JSON.stringify( {
-					'success': false,
-					'error': "Not Logged in as Administrator."
-				} ) );
-			} else {
-				if ( containsKeys( dat, [ 'listingID' ] ) ) {
-					return removeListing( dat, function ( err, result ) {
+			} );
+			ee_app.get( '/api/priceCheck', function ( req, res ) {
+				//console.log(req.header);	res.end('\naccesed priceCheck');
+				res.end( 'unimplemented, check back later asshole :(' )
+			} );
+			ee_app.get( '/api/getBidsByUser', function ( req, res ) {
+				res.contentType( 'application/json' );
+				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+				if ( containsKeys( dat, [ 'user' ] ) ) {
+					ee_getUserBidsWithListings( dat, function ( err, res ) {
 						if ( err ) {
 							return res.end( JSON.stringify( {
 								'success': false,
@@ -1225,24 +947,299 @@
 						}
 						return res.end( JSON.stringify( {
 							'success': true,
-							'result': result
+							'result': res.toString()
 						} ) );
 					} );
 				} else {
 					return res.end( JSON.stringify( {
 						'success': false,
-						'error': "missing listingID"
+						'error': 'Missing Parameter: User'
+					} ) )
+				}
+			} );
+			ee_app.get( '/api/register', function ( req, res ) {
+				res.contentType( 'application/json' );
+				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+				//console.log(dat);
+				if ( containsKeys( dat, [ 'user', 'md5', 'email', 'characterName', 'server' ] ) ) {
+					//console.log(JSON.stringify(dat));
+					ee_userRegister( dat, function ( err, a ) {
+						if ( a === true ) {
+							res.end( JSON.stringify( {
+								'success': true,
+								user: dat[ 'user' ],
+								email: dat[ 'email' ],
+								character: dat[ 'characterName' ],
+								server: dat[ 'server' ]
+							} ) );
+						} else {
+							res.end( JSON.stringify( {
+								'success': false,
+								'error': err
+							} ) );
+						}
+					} );
+				} else {
+					res.end( JSON.stringify( {
+						'success': false,
+						'error': 'missing parameters'
 					} ) );
 				}
-			}
-		} );
-	}
-}
+			} );
+			ee_app.get( '/api/login', function ( req, res ) {
+				var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+				res.contentType( 'application/json' );
+				if ( containsKeys( dat, [ 'user', 'md5' ] ) ) {
+					ee_userValidate( dat[ 'user' ], dat[ 'md5' ], function ( a ) {
+						if ( a == true ) {
+							// res.cookie('LoggedIn', true, { signed: true, secret : cookieSecret });
+							req.LoginSession.authenticated = true;
+							req.LoginSession.user = dat[ 'user' ];
+							res.end( JSON.stringify( {
+								success: true,
+								user: req.LoginSession.user,
+								auth: req.LoginSession.authenticated
+							} ) );
+						} else {
+							req.LoginSession.authenticated = false;
+							res.end( JSON.stringify( {
+								success: false,
+								user: '',
+								auth: req.LoginSession.authenticated
+							} ) );
+						}
+					} );
+				} else {
+					res.write( 'err: missing parameters' );
+					res.end();
+				}
+			} );
+			ee_app.get( '/api/logout', function ( req, res ) {
+				res.contentType( 'application/json' );
+				req.LoginSession.authenticated = false;
+				req.LoginSession.user = undefined;
+				res.end( JSON.stringify( {
+					'success': true
+				} ) );
+			} );
+			ee_app.get( '/api/loggedIn', function ( req, res ) {
+				res.contentType( 'application/json' );
+				res.end( JSON.stringify( {
+					'loggedIn': req.LoginSession.authenticated,
+					'user': req.LoginSession.user
+				} ) );
+			} );
+			ee_app.get( '/api/changelog', function ( req, res ) {
+				res.contentType( 'application/json' );
+				try {
+					fs.readFile( './changelog.txt', function ( err, data ) {
+						if ( err ) {
+							res.end( JSON.stringify( {
+								success: false,
+								error: err
+							} ) );
+						}
+						res.end( JSON.stringify( {
+							success: true,
+							result: JSON.parse( data.toString() )
+						} ) )
+					} );
+				} catch ( e ) {
+					res.end( JSON.stringify( {
+						success: false,
+						error: e.toString()
+					} ) )
+				}
+			} );
+			ee_app.get( '/api/account', function ( req, res ) {
+				res.contentType( 'application/json' );
+				if ( req.LoginSession.authenticated == true ) {
+					return ee_getAccountData( req.LoginSession.user, function ( err, result ) {
+						if ( err ) {
+							return res.end( JSON.stringify( {
+								'success': false,
+								'error': err
+							} ) );
+						} else {
+							return res.end( JSON.stringify( {
+								'success': true,
+								'result': result
+							} ) );
+						}
+					} );
+				} else {
+					return res.end( JSON.stringify( {
+						'success': false,
+						'error': 'Unauthenticated'
+					} ) );
+				}
+			} );
+			ee_app.get( '/api/account/addCharacter', function ( req, res ) {
+						res.contentType( 'application/json' );
+						var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+						if ( req.LoginSession.authenticated == true ) {
+							if ( containsKeys( dat, [ 'characterName', 'server' ] ) ) {
+								dat[ 'user' ] = req.LoginSession.user;
+								return ee_accountAddCharacter( dat, function ( err, result ) {
+									if ( err ) {
+										return res.end( JSON.stringify( {
+											'success': false,
+											'error': err.toString()
+										} ) );
+									} else {
+										return res.end( JSON.stringify( {
+											'success': true,
+											'result': result
+										} ) );
+									}
+								} );
+							} else {
+								return res.end( JSON.stringify( {
+									'success': false,
+									'error': 'Missing parameters: characterName or server'
+								} ) );
+							}
+						} else {
+							return res.end( JSON.stringify( {
+									'success': false,
+									'error': 'Unauthenticated'
+								}
+							} );
+							ee_app.get( '/api/account/removeCharacter', function ( req, res ) {
+								res.contentType( 'application/json' );
+								var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+								if ( req.LoginSession.authenticated == true ) {
+									if ( containsKeys( dat, [ 'characterName' ] ) ) {
+										dat[ 'user' ] = req.LoginSession.user;
+										return ee_accountRemoveCharacter( dat, function ( err, result ) {
+											if ( err ) {
+												return res.end( JSON.stringify( {
+													'success': false,
+													'error': err.toString()
+												} ) );
+											} else {
+												return res.end( JSON.stringify( {
+													'success': true,
+													'result': result
+												} ) );
+											}
+										} );
+									} else {
+										return res.end( JSON.stringify( {
+											'success': false,
+											'error': 'Missing parameters: characterName'
+										} ) );
+									}
+								} else {
+									return res.end( JSON.stringify( {
+										'success': false,
+										'error': 'Unauthenticated'
+									} ) );
+								}
+							} );
+							ee_app.get( '/api/account/closeListing', function ( req, res ) {
+								res.contentType( 'application/json' );
+								var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+								if ( req.LoginSession.authenticated == true ) {
+									if ( containsKeys( dat, [ 'listingID' ] ) ) {
+										dat[ 'user' ] = req.LoginSession.user;
+										return ee_closeListing( dat, function ( err, result ) {
+											if ( err ) return res.end( JSON.stringify( {
+												'success': false,
+												'error': err.toString(),
+												'data': result
+											} ) );
+											return res.end( JSON.stringify( {
+												'success': true,
+												'result': true
+											} ) );
+										} );
+									} else {
+										return res.end( JSON.stringify( {
+											'success': false,
+											'error': 'Missing parameter: listingID'
+										} ) );
+									}
+								} else {
+									return res.end( JSON.stringify( {
+										'success': false,
+										'error': 'Unauthenticated'
+									} ) );
+								}
+							} );
+							ee_app.get( '/api/account/editListing', function ( req, res ) {
+								res.contentType( 'application/json' );
+								var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+								console.log( 'EDIT:' + JSON.stringify( dat ) );
+								if ( req.LoginSession.authenticated == true ) {
+									if ( containsKeys( dat, [ 'listingID', 'fields[]' ] ) == true ) {
+										ee_removeInvalidFields( dat[ 'fields[]' ], [ 'tags[]', 'listingNotes' ] );
+										return ee_editListing( dat, function ( err, result ) {
+											if ( err ) {
+												return res.end( JSON.stringify( {
+													success: false,
+													error: err.toString()
+												} ) );
+											} else {
+												return res.end( JSON.stringify( {
+													success: true,
+													'result': result
+												} ) );
+											}
+										} );
+									} else {
+										return res.end( JSON.stringify( {
+											success: false,
+											error: 'Missing parameters: listingID, fields'
+										} ) )
+									}
+								} else {
+									return res.end( JSON.stringify( {
+										success: false,
+										error: "Unauthenticated"
+									} ) )
+								}
+							} );
+							ee_app.get( '/api/admin/removeListing', function ( req, res ) {
+								res.contentType( 'application/json' );
+								return res.end( JSON.stringify( {
+									'success': false,
+									'error': "Not Implemented"
+								} ) );
+								var dat = ( url.parse( req.url ).query != null ) ? querystring.parse( url.parse( req.url ).query ) : {};
+								if ( req.LoginSession.user != "Maldaris" ) {
+									return res.end( JSON.stringify( {
+										'success': false,
+										'error': "Not Logged in as Administrator."
+									} ) );
+								} else {
+									if ( containsKeys( dat, [ 'listingID' ] ) ) {
+										return removeListing( dat, function ( err, result ) {
+											if ( err ) {
+												return res.end( JSON.stringify( {
+													'success': false,
+													'error': err
+												} ) );
+											}
+											return res.end( JSON.stringify( {
+												'success': true,
+												'result': result
+											} ) );
+										} );
+									} else {
+										return res.end( JSON.stringify( {
+											'success': false,
+											'error': "missing listingID"
+										} ) );
+									}
+								}
+							} );
+						}
+					}
 
-ee_routes( ee_app );
-var debug = true;
-var port = 80;
-express()
-	.use( vhost( 'unaccompaniedminers.com', um_app ) )
-	.use( vhost( 'erinnexchange.com', ee_app ) )
-	.listen( port );
+					ee_routes( ee_app );
+					var debug = true;
+					var port = 80; express()
+					.use( vhost( 'unaccompaniedminers.com', um_app ) )
+					.use( vhost( 'erinnexchange.com', ee_app ) )
+					.listen( port );
