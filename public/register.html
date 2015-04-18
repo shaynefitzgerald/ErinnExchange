@@ -1,0 +1,42 @@
+
+<!Doctype html>
+
+<html>
+	<head>
+		<title>Reserve your username!</title>
+		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+	</head>
+	<body>
+		<div class='import-marker'>
+		<h1>Preregistration</h1>
+		<p>
+			Temporarily opening registration for usernames/passwords/characters for Erinn Exchange. </br>
+			Please keep all usernames profanity-free, and passwords longer than 8 characters.</br>
+			Due to the way the site stores passwords, only password resets are available. I CANNOT RECOVER YOUR PLAINTEXT PASSWORD.
+			</br>Please send emails to <a href="mailto:sharpenedbladehpcs@gmail.com">sharpenedbladehpcs@gmail.com</a> for account support.
+			</br><i>(Note: This site is written with heavy dependence on Javascript and Cookies. Please Enable both!)</i>
+			I've recently noticed that people are spam clicking the register submit button. Turns out something's broken with the preregistration page that doesn't give you a response when you hit submit.
+			Because I'm literally days from replacing it, I'm going to skip fixing it. If you've registered, and clicked once, try logging in on the homepage as verification. I apologize for anyone who's had issues with this in the past.
+			</br>
+			Let the insanity begin!
+			<form id=registration action>
+				Name: <input type=text id=username></input></br>
+				Password: <input type=password id=password1></input></br>
+				Reenter Password: <input type=password id=password2></input></br>
+				Email : <input type=text id=email></input></br>
+				Character: <input type=text id=charName></input></br>
+				Server: <select id=selectID id=Server>
+					<option value=Alexina>Alexina</option>
+					<option value=Mari>Mari</option>
+					<option value=Ruairi>Ruairi</option>
+					<option value=Tarlach>Tarlach</option>
+				</select></br>
+				<input type=button id='submit' value='Submit'></input>
+
+			</form>
+			<div class=result></div>
+			<script src='../scripts/legacy/register.js'></script>
+		</p>
+		</div>
+	</body>
+</html>

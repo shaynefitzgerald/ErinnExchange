@@ -1,0 +1,8 @@
+{
+	"KnownBugs" : ["Register form Redirects to preregistration from at ./register.html","Additional notes don't post to the server."],
+	"NewFeatures" : ["Create/Search Listings",	"Home and About page are now separate, albiet sharing some text."],
+	"InDevFeatures" : ["Account Details View", "Detailed Listing View"],
+	"LibrariesUsed" : ["Server: NodeJS, Mongoose, MongoDB, Express","Client: jQuery, Pure.css, BugHerd"],
+	"Credits" : ["Leo V. for teaching me modern web development", "Mom/Dad for enabling me to work on something this fun.", 
+		"Detailed Listing Inspect Icon made by Amit Jakhu from <a href='http://www.flaticon.com' title='Flaticon'>www.flaticon.com</a>"]
+}
